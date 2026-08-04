@@ -3,8 +3,8 @@
   "short_name": "strawb",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#ffe9ec",
-  "theme_color": "#ffe9ec",
+  "background_color": "#f2ecfa",
+  "theme_color": "#f2ecfa",
   "icons": [
     {
       "src": "./strawb-192.png",
