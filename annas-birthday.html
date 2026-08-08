@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Biscuit vs. The Birthday Box</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; touch-action: manipulation; }
+  body { background: #1a1428; }
+  #game-container { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="game-container"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+<script>
+'use strict';
+
+const GAME_W = 480, GAME_H = 800;
+
+// ---------------------------------------------------------------------------
+// Palette (frozen — later phases use these, never redefine)
+// ---------------------------------------------------------------------------
+const C = {
+  bg: 0x2b2140, floor: 0x3a2d55, panel: 0x241b38, panelLine: 0x8f7bd8,
+  cat: 0xf2a65a, catDark: 0xd98324, catBelly: 0xffd9a0, catPink: 0xf49ac1,
+  box: 0xe05780, boxLid: 0xff9ebb, ribbon: 0xffd166,
+  text: '#f6f2ff', textDim: '#b9aee0', accent: '#ffd166',
+  yarn: [0xff6b6b, 0x4ecdc4, 0xffd166, 0x9b5de5]  // red, teal, yellow, purple
+};
+
+const FONT_HEAD = 'Georgia, "Times New Roman", serif';
+const FONT_UI = 'Trebuchet MS, Verdana, sans-serif';
+
+// ---------------------------------------------------------------------------
+// Global helpers (frozen signatures — later phases call, never redefine)
+// ---------------------------------------------------------------------------
+
+// Draws Biscuit (round tabby) into a Container at (x,y), facing camera.
+// scale ~1 => cat is ~180px wide. Returns the Container.
+// mood: 'annoyed' (default) | 'alert' | 'smug'
+function createCat(scene, x, y, scale = 1, mood = 'annoyed') {
+  const cat = scene.add.container(x, y);
+
+  // Tail (behind body): thick curled stroke
+  const tail = scene.add.graphics();
+  tail.lineStyle(20, C.catDark, 1);
+  tail.beginPath();
+  tail.arc(95, 55, 42, Math.PI * 0.95, Math.PI * 1.85, false);
+  tail.strokePath();
+  tail.setName('tailPart');
+  cat.add(tail);
+
+  // Body
+  const body = scene.add.ellipse(0, 30, 180, 140, C.cat);
+  body.setName('body');
+  cat.add(body);
+
+  // Belly patch (unnamed decor)
+  cat.add(scene.add.ellipse(0, 55, 110, 80, C.catBelly));
+
+  // Ears (behind head edge)
+  const earL = scene.add.triangle(-44, -102, 0, 40, 18, 0, 40, 34, C.cat);
+  earL.setName('earL');
+  const earR = scene.add.triangle(44, -102, 0, 34, 22, 0, 40, 40, C.cat);
+  earR.setName('earR');
+  cat.add(earL); cat.add(earR);
+  // inner ears (unnamed)
+  cat.add(scene.add.triangle(-42, -94, 4, 26, 14, 6, 26, 22, C.catPink));
+  cat.add(scene.add.triangle(42, -94, 6, 22, 18, 6, 28, 26, C.catPink));
+
+  // Head
+  const head = scene.add.circle(0, -55, 62, C.cat);
+  head.setName('head');
+  cat.add(head);
+
+  // Stripes (head + body)
+  const stripes = scene.add.graphics();
+  stripes.lineStyle(7, C.catDark, 0.85);
+  // forehead stripes
+  [-16, 0, 16].forEach((sx) => {
+    stripes.beginPath();
+    stripes.moveTo(sx, -112);
+    stripes.lineTo(sx * 0.7, -92);
+    stripes.strokePath();
+  });
+  // side body stripes
+  stripes.beginPath(); stripes.moveTo(-88, 10); stripes.lineTo(-62, 18); stripes.strokePath();
+  stripes.beginPath(); stripes.moveTo(-86, 38); stripes.lineTo(-60, 42); stripes.strokePath();
+  stripes.beginPath(); stripes.moveTo(88, 10); stripes.lineTo(62, 18); stripes.strokePath();
+  stripes.beginPath(); stripes.moveTo(86, 38); stripes.lineTo(60, 42); stripes.strokePath();
+  stripes.setName('stripes');
+  cat.add(stripes);
+
+  // Eyes + pupils (mood-dependent)
+  let eyeL, eyeR;
+  const pupilL = scene.add.circle(-24, -62, 5, 0x2b1a10);
+  const pupilR = scene.add.circle(24, -62, 5, 0x2b1a10);
+  pupilL.setName('pupilL'); pupilR.setName('pupilR');
+
+  if (mood === 'alert') {
+    eyeL = scene.add.circle(-24, -62, 13, 0xffffff);
+    eyeR = scene.add.circle(24, -62, 13, 0xffffff);
+    pupilL.setRadius(7); pupilR.setRadius(7);
+  } else if (mood === 'smug') {
+    // closed happy arcs
+    eyeL = scene.add.graphics();
+    eyeL.lineStyle(5, 0x2b1a10, 1);
+    eyeL.beginPath(); eyeL.arc(-24, -60, 12, Math.PI * 1.15, Math.PI * 1.85, false); eyeL.strokePath();
+    eyeR = scene.add.graphics();
+    eyeR.lineStyle(5, 0x2b1a10, 1);
+    eyeR.beginPath(); eyeR.arc(24, -60, 12, Math.PI * 1.15, Math.PI * 1.85, false); eyeR.strokePath();
+    pupilL.setVisible(false); pupilR.setVisible(false);
+  } else {
+    // annoyed: half-lidded slits
+    eyeL = scene.add.ellipse(-24, -62, 28, 11, 0xffffff);
+    eyeR = scene.add.ellipse(24, -62, 28, 11, 0xffffff);
+    pupilL.setRadius(5); pupilR.setRadius(5);
+  }
+  eyeL.setName('eyeL'); eyeR.setName('eyeR');
+  cat.add(eyeL); cat.add(eyeR); cat.add(pupilL); cat.add(pupilR);
+
+  // Nose
+  const nose = scene.add.triangle(0, -42, 0, 0, 12, 0, 6, 8, C.catPink);
+  nose.setName('nose');
+  cat.add(nose);
+
+  // Mouth (mood-dependent)
+  const mouth = scene.add.graphics();
+  mouth.lineStyle(3, 0x2b1a10, 1);
+  if (mood === 'smug') {
+    mouth.beginPath(); mouth.arc(0, -36, 10, Math.PI * 0.15, Math.PI * 0.85, false); mouth.strokePath();
+  } else if (mood === 'alert') {
+    mouth.beginPath(); mouth.arc(-5, -33, 5, 0, Math.PI, false); mouth.strokePath();
+    mouth.beginPath(); mouth.arc(5, -33, 5, 0, Math.PI, false); mouth.strokePath();
+  } else {
+    // annoyed: flat unimpressed line
+    mouth.beginPath(); mouth.moveTo(-9, -30); mouth.lineTo(9, -30); mouth.strokePath();
+  }
+  mouth.setName('mouth');
+  cat.add(mouth);
+
+  // Whiskers
+  const whiskers = scene.add.graphics();
+  whiskers.lineStyle(2, 0xf6f2ff, 0.8);
+  [[-30, -42, -70, -48], [-30, -36, -70, -34], [30, -42, 70, -48], [30, -36, 70, -34]]
+    .forEach(([x1, y1, x2, y2]) => {
+      whiskers.beginPath(); whiskers.moveTo(x1, y1); whiskers.lineTo(x2, y2); whiskers.strokePath();
+    });
+  whiskers.setName('whiskers');
+  cat.add(whiskers);
+
+  cat.setScale(scale);
+  cat.setDepth(20);
+  return cat;
+}
+
+// Draws the gift box (base + lid + ribbon bow) into a Container.
+// Children named 'boxBase','boxLid','bow'.
+function createGiftBox(scene, x, y, scale = 1) {
+  const box = scene.add.container(x, y);
+
+  // Base (with vertical ribbon stripe)
+  const boxBase = scene.add.graphics();
+  boxBase.fillStyle(C.box, 1);
+  boxBase.fillRoundedRect(-80, -20, 160, 110, 8);
+  boxBase.fillStyle(C.ribbon, 1);
+  boxBase.fillRect(-14, -20, 28, 110);
+  boxBase.setName('boxBase');
+  box.add(boxBase);
+
+  // Lid (with ribbon stripe)
+  const boxLid = scene.add.graphics();
+  boxLid.fillStyle(C.boxLid, 1);
+  boxLid.fillRoundedRect(-92, -52, 184, 36, 8);
+  boxLid.fillStyle(C.ribbon, 1);
+  boxLid.fillRect(-14, -52, 28, 36);
+  boxLid.setName('boxLid');
+  box.add(boxLid);
+
+  // Bow on lid
+  const bow = scene.add.graphics();
+  bow.fillStyle(C.ribbon, 1);
+  bow.fillEllipse(-24, -62, 38, 22);
+  bow.fillEllipse(24, -62, 38, 22);
+  bow.fillCircle(0, -62, 10);
+  bow.setName('bow');
+  box.add(bow);
+
+  box.setScale(scale);
+  box.setDepth(10);
+  return box;
+}
+
+// Bottom dialogue panel. lines: array of {who:'BISCUIT'|null, text}.
+// Tap anywhere advances; onDone() after last line; destroys itself.
+// Returns { skip() }.
+function showDialogue(scene, lines, onDone) {
+  const objs = scene.add.container(0, 0).setDepth(50);
+
+  const panel = scene.add.graphics();
+  panel.fillStyle(C.panel, 0.96);
+  panel.fillRoundedRect(16, 620, GAME_W - 32, 160, 16);
+  panel.lineStyle(2, C.panelLine, 1);
+  panel.strokeRoundedRect(16, 620, GAME_W - 32, 160, 16);
+  objs.add(panel);
+
+  const tag = scene.add.text(40, 634, '', {
+    fontFamily: FONT_UI, fontSize: '14px', color: C.accent, fontStyle: 'bold'
+  });
+  const txt = scene.add.text(40, 656, '', {
+    fontFamily: FONT_UI, fontSize: '20px', color: C.text,
+    wordWrap: { width: 400 }, lineSpacing: 4
+  });
+  const hint = scene.add.text(GAME_W - 32, 764, 'tap ▸', {
+    fontFamily: FONT_UI, fontSize: '13px', color: C.textDim
+  }).setOrigin(1, 1);
+  objs.add(tag); objs.add(txt); objs.add(hint);
+
+  // full-screen tap catcher
+  const blocker = scene.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, 0x000000, 0.001)
+    .setDepth(51).setInteractive();
+
+  let i = 0, done = false;
+
+  function render() {
+    const line = lines[i];
+    tag.setText(line.who ? line.who : '');
+    txt.setText(line.text);
+    txt.setY(line.who ? 660 : 650);
+    txt.setAlpha(0);
+    scene.tweens.add({ targets: txt, alpha: 1, duration: 160 });
+  }
+
+  function finish() {
+    if (done) return;
+    done = true;
+    blocker.destroy();
+    objs.destroy();
+    if (onDone) onDone();
+  }
+
+  blocker.on('pointerdown', () => {
+    i++;
+    if (i >= lines.length) finish();
+    else render();
+  });
+
+  render();
+  return { skip: finish };
+}
+
+// Big rounded tap button. Container children: 'btnBg' graphics + 'btnLabel' text.
+// Min size 220x64. Pointerdown => scale-pop tween then onTap().
+function makeButton(scene, x, y, label, onTap) {
+  const w = 220, h = 64;
+  const btn = scene.add.container(x, y).setDepth(55);
+
+  const bg = scene.add.graphics();
+  bg.fillStyle(C.box, 1);
+  bg.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
+  bg.lineStyle(3, C.boxLid, 1);
+  bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
+  bg.setName('btnBg');
+  btn.add(bg);
+
+  const lbl = scene.add.text(0, 0, label, {
+    fontFamily: FONT_UI, fontSize: '24px', color: C.text, fontStyle: 'bold'
+  }).setOrigin(0.5);
+  lbl.setName('btnLabel');
+  btn.add(lbl);
+
+  btn.setInteractive(
+    new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h),
+    Phaser.Geom.Rectangle.Contains
+  );
+  let busy = false;
+  btn.on('pointerdown', () => {
+    if (busy) return;
+    busy = true;
+    scene.tweens.add({
+      targets: btn, scaleX: 0.9, scaleY: 0.9,
+      duration: 90, yoyo: true, ease: 'Quad.easeOut',
+      onComplete: () => { busy = false; if (onTap) onTap(); }
+    });
+  });
+  return btn;
+}
+
+// One-line floating cat quip near (x,y): fades/rises, auto-destroys after 1800ms.
+function catQuip(scene, x, y, text) {
+  const holder = scene.add.container(x, y).setDepth(45);
+  const t = scene.add.text(0, 0, text, {
+    fontFamily: FONT_UI, fontSize: '17px', color: '#2b2140', fontStyle: 'italic',
+    wordWrap: { width: 260 }, align: 'center'
+  }).setOrigin(0.5);
+  const bw = t.width + 28, bh = t.height + 18;
+  const bubble = scene.add.graphics();
+  bubble.fillStyle(0xf6f2ff, 0.95);
+  bubble.fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
+  holder.add(bubble); holder.add(t);
+  // keep bubble on screen
+  const half = bw / 2 + 8;
+  holder.x = Phaser.Math.Clamp(holder.x, half, GAME_W - half);
+  scene.tweens.add({
+    targets: holder, y: y - 34, alpha: 0,
+    delay: 1200, duration: 600, ease: 'Quad.easeIn',
+    onComplete: () => holder.destroy()
+  });
+  scene.time.delayedCall(1800, () => { if (holder.active) holder.destroy(); });
+  return holder;
+}
+
+// ---------------------------------------------------------------------------
+// Scenes
+// ---------------------------------------------------------------------------
+
+class BootScene extends Phaser.Scene {
+  constructor() { super('BootScene'); }
+  create() {
+    const g = this.add.graphics();
+
+    // tex-particle: white filled circle 16x16
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(8, 8, 8);
+    g.generateTexture('tex-particle', 16, 16);
+    g.clear();
+
+    // tex-star: white 5-point star 24x24
+    const cx = 12, cy = 12, outer = 11, inner = 4.6;
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const r = (i % 2 === 0) ? outer : inner;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      pts.push(new Phaser.Geom.Point(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+    }
+    g.fillStyle(0xffffff, 1);
+    g.fillPoints(pts, true);
+    g.generateTexture('tex-star', 24, 24);
+    g.clear();
+
+    // tex-confetti: white 8x14 rounded rect
+    g.fillStyle(0xffffff, 1);
+    g.fillRoundedRect(0, 0, 8, 14, 3);
+    g.generateTexture('tex-confetti', 8, 14);
+    g.destroy();
+
+    this.scene.start('TitleScene');
+  }
+}
+
+class TitleScene extends Phaser.Scene {
+  constructor() { super('TitleScene'); }
+  create() {
+    this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, C.bg).setDepth(0);
+
+    // Twinkling stars
+    for (let i = 0; i < 9; i++) {
+      const s = this.add.image(
+        Phaser.Math.Between(24, GAME_W - 24),
+        Phaser.Math.Between(24, 250),
+        'tex-star'
+      ).setDepth(1).setScale(Phaser.Math.FloatBetween(0.5, 0.9))
+       .setAlpha(Phaser.Math.FloatBetween(0.2, 0.7)).setTint(0xfff3c4);
+      this.tweens.add({
+        targets: s, alpha: 0.15,
+        duration: Phaser.Math.Between(900, 1800),
+        yoyo: true, repeat: -1,
+        delay: Phaser.Math.Between(0, 1200)
+      });
+    }
+
+    this.add.text(GAME_W / 2, 88, 'Biscuit vs.\nThe Birthday Box', {
+      fontFamily: FONT_HEAD, fontSize: '34px', color: C.accent,
+      align: 'center', wordWrap: { width: 440 }
+    }).setOrigin(0.5).setDepth(2);
+
+    this.add.text(GAME_W / 2, 152, 'a tiny game for Anna', {
+      fontFamily: FONT_UI, fontSize: '18px', color: C.textDim, fontStyle: 'italic'
+    }).setOrigin(0.5).setDepth(2);
+
+    // Cat sitting on gift box
+    createGiftBox(this, 240, 470, 1.1);
+    const cat = createCat(this, 240, 380, 0.9, 'annoyed');
+
+    // Tail sway
+    const tail = cat.getByName('tailPart');
+    this.tweens.add({
+      targets: tail, angle: 7, duration: 1400,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+    // Gentle breathing
+    this.tweens.add({
+      targets: cat, scaleY: 0.925, duration: 1600,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    this.add.text(GAME_W / 2, 608,
+      "Anna's gift had a big satin ribbon. Biscuit chased it, won,\n" +
+      'and — by the ancient law "if it fits, I sits" — claimed\n' +
+      'the box as her throne. Six hours ago. Go negotiate.', {
+      fontFamily: FONT_UI, fontSize: '16px', color: C.textDim,
+      align: 'center', lineSpacing: 5
+    }).setOrigin(0.5).setDepth(2);
+
+    makeButton(this, 240, 700, 'Tap to begin', () => {
+      this.registry.set('demandsMet', 0);
+      this.registry.set('puzzleRound', 0);
+      this.scene.start('MeetScene');
+    });
+  }
+}
+
+// --- Stubs below: Phase 2 replaces MeetScene + PuzzleScene bodies,
+// --- Phase 3 replaces RevealScene body. ---
+
+class MeetScene extends Phaser.Scene {
+  constructor() { super('MeetScene'); }
+
+  create() {
+    // --- Room ---
+    this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, C.bg).setDepth(0);
+    this.add.rectangle(GAME_W / 2, 660, GAME_W, 280, C.floor).setDepth(1);
+
+    // Window frame + moon (decor, non-interactive)
+    const win = this.add.graphics().setDepth(2);
+    win.fillStyle(0x1f1733, 1);
+    win.fillRoundedRect(38, 60, 130, 150, 10);
+    win.lineStyle(5, C.panelLine, 0.9);
+    win.strokeRoundedRect(38, 60, 130, 150, 10);
+    win.beginPath(); win.moveTo(103, 62); win.lineTo(103, 208); win.strokePath();
+    win.beginPath(); win.moveTo(40, 135); win.lineTo(166, 135); win.strokePath();
+    win.fillStyle(0xfff3c4, 0.95);
+    win.fillCircle(78, 100, 18);
+    win.fillStyle(0x1f1733, 1);
+    win.fillCircle(86, 94, 14);
+
+    // --- Cat on box (same framing as Title) ---
+    createGiftBox(this, 240, 470, 1.1);
+    this.cat = createCat(this, 240, 380, 0.9, 'annoyed');
+    const tail = this.cat.getByName('tailPart');
+    this.tweens.add({
+      targets: tail, angle: 7, duration: 1400,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+    this.tweens.add({
+      targets: this.cat, scaleY: 0.925, duration: 1600,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    // --- Progress hint ---
+    this.hintText = this.add.text(GAME_W / 2, 30, "Biscuit's demands: 0 / 3", {
+      fontFamily: FONT_UI, fontSize: '18px', color: C.textDim
+    }).setOrigin(0.5).setDepth(52).setName('hintText');
+
+    // --- Demand props ---
+    this.buildProps();
+
+    // --- Opening dialogue (lines 1-3) ---
+    showDialogue(this, [
+      { who: 'BISCUIT', text: 'Oh. A human. How thrilling for you.' },
+      { who: 'BISCUIT', text: "This box? Mine. It fits, I sit. That's the law." },
+      { who: 'BISCUIT', text: "The 'gift for Anna'? Never heard of her. This is my throne now." },
+      { who: null, text: 'Biscuit will not move. Perhaps meeting her demands will help. Tap the things she wants.' }
+    ], () => {});
+  }
+
+  buildProps() {
+    this.props = [];
+
+    // Fish treat at (90, 640)
+    const fish = this.add.container(90, 640).setDepth(12).setName('propFish');
+    const fg = this.add.graphics();
+    fg.fillStyle(0x7fb2e5, 1);
+    fg.fillEllipse(-4, 0, 52, 26);
+    fg.fillTriangle(20, 0, 40, -14, 40, 14);
+    fg.fillStyle(0x5a8fc4, 1);
+    fg.fillEllipse(-10, -4, 20, 8);
+    fg.fillStyle(0x1f1733, 1);
+    fg.fillCircle(-20, -3, 2.5);
+    fish.add(fg);
+    this.setupProp(fish, 'Acceptable. Barely.');
+
+    // Food bowl at (240, 660)
+    const bowl = this.add.container(240, 660).setDepth(12).setName('propBowl');
+    const bg = this.add.graphics();
+    bg.fillStyle(0x9b5de5, 1);
+    bg.fillRoundedRect(-34, -10, 68, 24, { tl: 4, tr: 4, bl: 12, br: 12 });
+    bg.fillStyle(0x7a3fc9, 1);
+    bg.fillEllipse(0, -10, 68, 14);
+    bg.fillStyle(0xc98a4b, 1);
+    bg.fillEllipse(0, -11, 52, 8);
+    bg.fillStyle(0xb5763a, 1);
+    bg.fillCircle(-12, -12, 4); bg.fillCircle(4, -13, 4); bg.fillCircle(14, -11, 3.5);
+    bowl.add(bg);
+    this.setupProp(bowl, 'Is this... service? Continue.');
+
+    // Yarn basket at (390, 640)
+    const basket = this.add.container(390, 640).setDepth(12).setName('propYarn');
+    const yg = this.add.graphics();
+    yg.fillStyle(0x8a6a3f, 1);
+    yg.fillRoundedRect(-36, -8, 72, 30, { tl: 4, tr: 4, bl: 14, br: 14 });
+    yg.lineStyle(3, 0x6d5330, 0.8);
+    yg.strokeRoundedRect(-36, -8, 72, 30, { tl: 4, tr: 4, bl: 14, br: 14 });
+    [[-18, -14, C.yarn[0]], [2, -18, C.yarn[1]], [20, -13, C.yarn[2]]].forEach(([yx, yy, col]) => {
+      yg.fillStyle(col, 1);
+      yg.fillCircle(yx, yy, 11);
+      yg.lineStyle(2, 0xffffff, 0.35);
+      yg.beginPath(); yg.arc(yx, yy, 7, 0.4, 2.6, false); yg.strokePath();
+    });
+    basket.add(yg);
+    this.setupProp(basket, 'Do NOT tempt me with a good time.');
+  }
+
+  setupProp(prop, quip) {
+    // NOTE: no setSize() here — a Container with width/height gets a
+    // displayOrigin offset applied during input hit tests, which would shift
+    // this centered hit rect off the visible prop.
+    prop.setInteractive(
+      new Phaser.Geom.Rectangle(-45, -45, 90, 90),
+      Phaser.Geom.Rectangle.Contains
+    );
+    this.props.push(prop);
+    // gentle attention pulse until tapped
+    const pulse = this.tweens.add({
+      targets: prop, scaleX: 1.1, scaleY: 1.1,
+      duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+    prop.once('pointerdown', () => {
+      prop.setData('claimed', true);
+      // Freeze ALL props (not just this one) so rapid taps during the 1300ms
+      // window can't stack overlapping dialogue panels; the unclaimed ones
+      // reopen once this tap's dialogue line is dismissed.
+      this.props.forEach(p => { if (p.input) p.input.enabled = false; });
+      const reopenProps = () => this.props.forEach(p => {
+        if (p.active && p.input && !p.getData('claimed')) p.input.enabled = true;
+      });
+      pulse.stop();
+      prop.setScale(1);
+      const homeX = prop.x, homeY = prop.y;
+      const n = this.registry.get('demandsMet') + 1;
+      this.registry.set('demandsMet', n);
+      this.hintText.setText("Biscuit's demands: " + n + ' / 3');
+
+      // hop to the cat: move + shrink
+      this.tweens.add({
+        targets: prop, x: 240, y: 400, scaleX: 0.1, scaleY: 0.1, alpha: 0.2,
+        duration: 550, ease: 'Quad.easeIn',
+        onComplete: () => prop.destroy()
+      });
+      // checkmark where the prop was
+      const check = this.add.text(homeX, homeY, '✓', {
+        fontFamily: FONT_UI, fontSize: '34px', color: C.accent, fontStyle: 'bold'
+      }).setOrigin(0.5).setDepth(12).setAlpha(0);
+      this.tweens.add({ targets: check, alpha: 1, duration: 300, delay: 350 });
+
+      catQuip(this, 240, 260, quip);
+
+      if (n === 1) {
+        this.time.delayedCall(1300, () => {
+          showDialogue(this, [
+            { who: 'BISCUIT', text: "You're still here. Bold." }
+          ], reopenProps);
+        });
+      } else if (n === 2) {
+        this.time.delayedCall(1300, () => {
+          showDialogue(this, [
+            { who: 'BISCUIT', text: 'Petting me? Adorable attempt. The box stays under me.' }
+          ], reopenProps);
+        });
+      } else if (n === 3) {
+        this.time.delayedCall(1300, () => {
+          showDialogue(this, [
+            { who: 'BISCUIT', text: "I *might* consider relocating... for the right price. I accept fish, worship, and yarn." }
+          ], () => this.scene.start('PuzzleScene'));
+        });
+      }
+    });
+  }
+}
+
+class PuzzleScene extends Phaser.Scene {
+  constructor() { super('PuzzleScene'); }
+
+  create() {
+    this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, C.bg).setDepth(0);
+    this.registry.set('puzzleRound', 0);
+
+    // Box behind, cat in front (small, top area)
+    createGiftBox(this, 240, 250, 0.7);
+    this.cat = createCat(this, 240, 170, 0.7, 'annoyed');
+    const tail = this.cat.getByName('tailPart');
+    this.tweens.add({
+      targets: tail, angle: 7, duration: 1400,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    this.roundText = this.add.text(GAME_W / 2, 30, 'Round 1 / 3', {
+      fontFamily: FONT_UI, fontSize: '18px', color: C.textDim
+    }).setOrigin(0.5).setDepth(52).setName('roundText');
+
+    this.stateText = this.add.text(GAME_W / 2, 380, '', {
+      fontFamily: FONT_UI, fontSize: '22px', color: C.accent, fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(52).setName('stateText');
+
+    // --- Four yarn balls ---
+    const positions = [[130, 480], [350, 480], [130, 620], [350, 620]];
+    this.yarns = positions.map(([x, y], i) => {
+      const holder = this.add.container(x, y).setDepth(15).setName('yarn' + i);
+      const col = C.yarn[i];
+      const ball = this.add.circle(0, 0, 46, col);
+      const threads = this.add.graphics();
+      threads.lineStyle(3, 0xffffff, 0.35);
+      threads.beginPath(); threads.arc(0, -6, 34, 0.3, 2.8, false); threads.strokePath();
+      threads.beginPath(); threads.arc(0, 10, 30, 3.5, 6.0, false); threads.strokePath();
+      const hl = this.add.circle(0, 0, 46, 0xffffff, 0).setName('hl');
+      holder.add(ball); holder.add(threads); holder.add(hl);
+      holder.setInteractive(
+        new Phaser.Geom.Circle(0, 0, 50),
+        Phaser.Geom.Circle.Contains
+      );
+      holder.on('pointerdown', () => this.onYarnTap(i));
+      return holder;
+    });
+
+    this.seq = [];
+    this.round = 0;
+    this.playerIndex = 0;
+    this.locked = true;
+
+    showDialogue(this, [
+      { who: 'BISCUIT', text: 'Fine. Beat me at my own game and the box is yours. I never lose. Ever.' },
+      { who: null, text: 'Copycat! Watch which yarn balls Biscuit bats, then tap them back in the same order.' }
+    ], () => this.startRound(1));
+  }
+
+  flash(i, ms = 320) {
+    const holder = this.yarns[i];
+    const hl = holder.getByName('hl');
+    this.tweens.killTweensOf(holder);
+    holder.setScale(1);
+    this.tweens.add({
+      targets: holder, scaleX: 1.25, scaleY: 1.25,
+      duration: ms / 2, yoyo: true, ease: 'Quad.easeOut'
+    });
+    this.tweens.add({
+      targets: hl, fillAlpha: 0.55,
+      duration: ms / 2, yoyo: true,
+      onComplete: () => { hl.fillAlpha = 0; }
+    });
+  }
+
+  startRound(r) {
+    this.round = r;
+    this.playerIndex = 0;
+    this.roundText.setText('Round ' + r + ' / 3');
+    const len = r + 1;
+    this.seq = [];
+    for (let k = 0; k < len; k++) this.seq.push(Phaser.Math.Between(0, 3));
+    this.playSequence();
+  }
+
+  playSequence() {
+    this.locked = true;
+    this.playerIndex = 0;
+    this.stateText.setText('Watch...');
+    this.seq.forEach((idx, k) => {
+      this.time.delayedCall(500 + k * 420, () => this.flash(idx));
+    });
+    this.time.delayedCall(500 + this.seq.length * 420 + 200, () => {
+      this.stateText.setText('Your turn!');
+      this.locked = false;
+    });
+  }
+
+  onYarnTap(i) {
+    if (this.locked) return;
+    this.flash(i, 240);
+
+    if (i === this.seq[this.playerIndex]) {
+      this.playerIndex++;
+      if (this.playerIndex === this.seq.length) this.winRound();
+    } else {
+      this.failRound();
+    }
+  }
+
+  winRound() {
+    this.locked = true;
+    const r = this.round;
+    this.registry.set('puzzleRound', r);
+    catQuip(this, 240, 60, '...Lucky paw. Again.');
+    if (r < 3) {
+      this.stateText.setText('');
+      this.time.delayedCall(900, () => this.startRound(r + 1));
+    } else {
+      this.stateText.setText('');
+      // brief smug mood swap, then reveal
+      const cx = this.cat.x, cy = this.cat.y;
+      this.tweens.killTweensOf(this.cat.getByName('tailPart'));
+      this.tweens.killTweensOf(this.cat);
+      this.cat.destroy();
+      this.cat = createCat(this, cx, cy, 0.7, 'smug');
+      this.time.delayedCall(1500, () => this.scene.start('RevealScene'));
+    }
+  }
+
+  failRound() {
+    this.locked = true;
+    this.stateText.setText('');
+    // cat shake
+    this.tweens.add({
+      targets: this.cat, x: this.cat.x + 8,
+      duration: 60, yoyo: true, repeat: 4, ease: 'Sine.easeInOut'
+    });
+    catQuip(this, 240, 60, 'Pfft. Amateur. Watch again. Slowly this time.');
+    this.time.delayedCall(1900, () => this.playSequence());
+  }
+}
+
+class RevealScene extends Phaser.Scene {
+  constructor() { super('RevealScene'); }
+
+  create() {
+    // --- Room (same framing as MeetScene) ---
+    this.add.rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, C.bg).setDepth(0);
+    this.add.rectangle(GAME_W / 2, 660, GAME_W, 280, C.floor).setDepth(1);
+
+    // --- Box + cat, matching Meet/Title framing ---
+    this.box = createGiftBox(this, 240, 470, 1.1);
+    this.cat = createCat(this, 240, 380, 0.9, 'annoyed');
+    const tail = this.cat.getByName('tailPart');
+    this.tweens.add({
+      targets: tail, angle: 7, duration: 1400,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+    this.tweens.add({
+      targets: this.cat, scaleY: 0.925, duration: 1600,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    // 1. Dialogue line 10, then the cat finally gives up the box.
+    showDialogue(this, [
+      { who: 'BISCUIT', text: 'Ugh. FINE. Take the box. I was done with it anyway.' }
+    ], () => this.hopOff());
+  }
+
+  // 2. Cat hop-off: arc jump to (110, 560), lands smug.
+  hopOff() {
+    this.tweens.killTweensOf(this.cat.getByName('tailPart'));
+    this.tweens.killTweensOf(this.cat);
+    this.cat.setScale(0.9);
+
+    // horizontal glide + squash anticipation
+    this.tweens.add({
+      targets: this.cat, x: 110, duration: 700, ease: 'Linear'
+    });
+    // vertical arc: up to peak, then down to floor
+    this.tweens.add({
+      targets: this.cat, y: 290, duration: 350, ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: this.cat, y: 560, duration: 350, ease: 'Quad.easeIn',
+          onComplete: () => {
+            // land: swap to smug mood
+            this.cat.destroy();
+            this.cat = createCat(this, 110, 560, 0.9, 'smug');
+            const tail = this.cat.getByName('tailPart');
+            this.tweens.add({
+              targets: tail, angle: 9, duration: 1200,
+              yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+            });
+            // tiny landing bounce
+            this.tweens.add({
+              targets: this.cat, scaleY: 0.82, duration: 110,
+              yoyo: true, ease: 'Quad.easeOut'
+            });
+            this.time.delayedCall(350, () => this.openBox());
+          }
+        });
+      }
+    });
+  }
+
+  // 3. Box opens: lid + bow fly up and off; warm glow burst from box mouth.
+  openBox() {
+    const lid = this.box.getByName('boxLid');
+    const bow = this.box.getByName('bow');
+    this.tweens.add({
+      targets: [lid, bow],
+      y: '-=520', x: '+=70', angle: 38, alpha: 0.9,
+      duration: 900, ease: 'Quad.easeIn'
+    });
+
+    // warm glow burst from the box mouth
+    this.time.delayedCall(180, () => {
+      const glow = this.add.particles(240, 445, 'tex-particle', {
+        speed: { min: 90, max: 300 },
+        angle: { min: 210, max: 330 },
+        lifespan: { min: 500, max: 1100 },
+        scale: { start: 1.1, end: 0 },
+        alpha: { start: 1, end: 0 },
+        tint: [0xffd166, 0xffffff],
+        emitting: false
+      }).setDepth(45);
+      glow.explode(48);
+      // soft rising glow from inside the box, briefly
+      const rise = this.add.particles(240, 450, 'tex-particle', {
+        x: { min: -55, max: 55 },
+        speedY: { min: -90, max: -40 },
+        speedX: { min: -15, max: 15 },
+        lifespan: 1400,
+        scale: { start: 0.7, end: 0 },
+        alpha: { start: 0.8, end: 0 },
+        tint: 0xffd166,
+        quantity: 1,
+        frequency: 90
+      }).setDepth(44);
+      this.time.delayedCall(2600, () => rise.stop());
+    });
+
+    this.time.delayedCall(700, () => this.showMessage());
+  }
+
+  // 4 + 5. Birthday message + continuous celebration.
+  showMessage() {
+    const big = this.add.text(GAME_W / 2, 260, 'Happy Birthday, Anna!', {
+      fontFamily: FONT_HEAD, fontSize: '40px', color: C.accent,
+      align: 'center', wordWrap: { width: 440 }
+    }).setOrigin(0.5).setDepth(52).setScale(0);
+    this.tweens.add({
+      targets: big, scaleX: 1, scaleY: 1,
+      duration: 600, ease: 'Back.easeOut'
+    });
+
+    const sub = this.add.text(GAME_W / 2, 340,
+      "You're the kind of person even a cat gives up a box for. Have the best day. 🎂", {
+      fontFamily: FONT_UI, fontSize: '20px', color: C.text,
+      align: 'center', wordWrap: { width: 400 }, lineSpacing: 5
+    }).setOrigin(0.5).setDepth(52).setAlpha(0);
+    this.tweens.add({ targets: sub, alpha: 1, duration: 500, delay: 450 });
+
+    // Confetti raining from the top edge, continuous
+    this.add.particles(0, -12, 'tex-confetti', {
+      x: { min: 16, max: GAME_W - 16 },
+      angle: 90,
+      speed: { min: 30, max: 110 },
+      gravityY: 200,
+      lifespan: 5000,
+      quantity: 1,
+      frequency: 90,
+      scale: { min: 0.7, max: 1.3 },
+      rotate: { start: 0, end: 360 },
+      tint: [C.yarn[0], C.yarn[1], C.yarn[2], C.yarn[3], C.box]
+    }).setDepth(47);
+
+    // Twinkling stars around the message
+    for (let i = 0; i < 10; i++) {
+      const s = this.add.image(
+        Phaser.Math.Between(30, GAME_W - 30),
+        Phaser.Math.Between(60, 220),
+        'tex-star'
+      ).setDepth(46).setScale(Phaser.Math.FloatBetween(0.5, 1))
+       .setAlpha(Phaser.Math.FloatBetween(0.3, 0.8)).setTint(0xfff3c4);
+      this.tweens.add({
+        targets: s, alpha: 0.1,
+        duration: Phaser.Math.Between(800, 1600),
+        yoyo: true, repeat: -1,
+        delay: Phaser.Math.Between(0, 1000)
+      });
+    }
+
+    // 6. Dialogue line 11, then line 12 as small persistent text near the cat.
+    this.time.delayedCall(1500, () => {
+      showDialogue(this, [
+        { who: 'BISCUIT', text: "...It's warm because of the sun. Not because I like her. Tell Anna I said... whatever." }
+      ], () => {
+        const whisper = this.add.text(110, 438, 'happy birthday, anna. — b.', {
+          fontFamily: FONT_UI, fontSize: '15px', color: C.textDim, fontStyle: 'italic'
+        }).setOrigin(0.5).setDepth(52).setAlpha(0);
+        this.tweens.add({ targets: whisper, alpha: 1, duration: 900 });
+
+        // 7. Replay button.
+        makeButton(this, 240, 720, 'Play again', () => this.scene.start('TitleScene'));
+      });
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Game config (frozen)
+// ---------------------------------------------------------------------------
+const config = {
+  type: Phaser.AUTO,
+  width: GAME_W, height: GAME_H,
+  backgroundColor: '#2b2140',
+  parent: 'game-container',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scene: [BootScene, TitleScene, MeetScene, PuzzleScene, RevealScene]
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
