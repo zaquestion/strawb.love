@@ -27,7 +27,7 @@ type Lock struct {
 // wiring slip into a crash instead of a visible no-op.
 var (
 	// LogFn receives one console line's worth of operands.
-	LogFn = func(args ...interface{}) {}
+	LogFn = func(args ...any) {}
 	// NewLockFn cuts a fresh façade lock.
 	NewLockFn = func() *Lock { return &Lock{Pins: 5} }
 	// InstallFn hands a lock to the vault.
@@ -35,7 +35,7 @@ var (
 )
 
 // Log prints one line to the vault's debug console.
-func Log(args ...interface{}) { LogFn(args...) }
+func Log(args ...any) { LogFn(args...) }
 
 // NewLock returns a fresh lock: 5 pins, not picked.
 func NewLock() *Lock { return NewLockFn() }

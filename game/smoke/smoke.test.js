@@ -30,6 +30,10 @@ function assert(cond, label, detail) {
   }
 }
 
+// Mirrors engine.RiggedPickStrength — the act-1 factory pick hp. The boot
+// assertions below fail loudly if the engine's rigging drifts from this.
+const RIGGED_HP = 5;
+
 let id = 0;
 function call(action, args) {
   const m = Object.assign({ id: ++id, type: "act", action }, args || {});
@@ -80,23 +84,25 @@ async function main() {
   console.log("— boot state —");
   let r = call("boot", {});
   assert(r.state.act === 1 && !r.state.won && !r.state.sentryAwake, "factory act-1 state", r.state);
-  assert(r.state.params.pickStrength === 3 && r.state.params.forgiveness === 1, "rigged params {3,1}", r.state.params);
+  assert(r.state.params.pickStrength === RIGGED_HP && r.state.params.forgiveness === 1, "rigged params {" + RIGGED_HP + ",1}", r.state.params);
   assert(r.state.lock.pins.length === 5 && r.state.lock.serial === 1, "lock #1, five pins", r.state.lock);
-  assert(r.state.pick.hp === 3 && !r.state.pick.broken, "pick at 3 hp", r.state.pick);
+  assert(r.state.pick.hp === RIGGED_HP && !r.state.pick.broken, "pick at " + RIGGED_HP + " hp", r.state.pick);
   assert(typeof r.state.snapshot === "string" && r.state.snapshot.length > 0, "snapshot rides every reply");
   assert(!r.state.lastHookError, "default sentry7 source eval'd clean at boot", r.state.lastHookError);
 
   console.log("— act 1: the rig —");
   call("setUser", { user: "alyx" });
-  // Force 0 is always a slip (targets ≥ 25, window ±1): three misses snap the pick.
-  call("pushPin", { pin: 0, force: 0 });
-  call("pushPin", { pin: 0, force: 0 });
+  // Force 0 is always a slip (targets ≥ 25, window ±1): RIGGED_HP misses snap the pick.
+  for (let miss = 1; miss < RIGGED_HP; miss++) {
+    r = call("pushPin", { pin: 0, force: 0 });
+    assert(!r.event && r.state.pick.hp === RIGGED_HP - miss, "miss " + miss + " chips, no drama yet", r.state.pick);
+  }
   r = call("pushPin", { pin: 0, force: 0 });
-  assert(r.event === "pickBroke" && r.state.pick.broken, "third miss snaps the pick", r);
+  assert(r.event === "pickBroke" && r.state.pick.broken, "miss " + RIGGED_HP + " snaps the pick", r);
   r = call("pushPin", { pin: 0, force: 50 });
   assert(r.push.result === "already" && !r.event, "broken pick refuses pushes quietly", r.push);
   r = call("newLock", {});
-  assert(!r.state.pick.broken && r.state.pick.hp === 3 && r.state.lock.serial === 2, "newLock re-cuts lock AND pick", r.state);
+  assert(!r.state.pick.broken && r.state.pick.hp === RIGGED_HP && r.state.lock.serial === 2, "newLock re-cuts lock AND pick", r.state);
 
   console.log("— act 2: admin buff wakes SENTRY-7 —");
   const { wake, calm } = hackIn();

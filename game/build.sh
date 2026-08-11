@@ -36,7 +36,10 @@ wasm_out=$(mktemp -t game.wasm.XXXXXX)
 trap 'rm -f "$wasm_out"' EXIT
 GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o "$wasm_out" ./wasmmain
 mkdir -p ../alyx
-gzip -9 -c "$wasm_out" > ../alyx/game.wasm.gz
+# -n: omit the input name + mtime from the gzip header — without it every run
+# embeds the random mktemp filename and the clock, churning the committed
+# artifact even when the wasm inside is byte-identical.
+gzip -9 -n -c "$wasm_out" > ../alyx/game.wasm.gz
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ../alyx/wasm_exec.js
 
 echo "── node smoke (drives the real wasm + shipped glue) ──"

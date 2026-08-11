@@ -7,6 +7,7 @@ package patch
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
 
@@ -64,13 +65,11 @@ var msgID int64
 
 // call drives the session exactly like worker.js does: one JSON message in,
 // one JSON reply out.
-func call(t *testing.T, s *Session, action string, args map[string]interface{}) rep {
+func call(t *testing.T, s *Session, action string, args map[string]any) rep {
 	t.Helper()
 	msgID++
-	m := map[string]interface{}{"id": msgID, "type": "act", "action": action}
-	for k, v := range args {
-		m[k] = v
-	}
+	m := map[string]any{"id": msgID, "type": "act", "action": action}
+	maps.Copy(m, args)
 	raw, err := json.Marshal(m)
 	if err != nil {
 		t.Fatalf("marshal %s: %v", action, err)
@@ -95,13 +94,13 @@ func hackedSession(t *testing.T) *Session {
 	t.Helper()
 	s := NewSession()
 	call(t, s, "boot", nil)
-	call(t, s, "setUser", map[string]interface{}{"user": "alyx"})
-	call(t, s, "setAct", map[string]interface{}{"act": 2})
-	r := call(t, s, "setParam", map[string]interface{}{"name": "pickStrength", "value": 9000})
+	call(t, s, "setUser", map[string]any{"user": "alyx"})
+	call(t, s, "setAct", map[string]any{"act": 2})
+	r := call(t, s, "setParam", map[string]any{"name": "pickStrength", "value": 9000})
 	if r.Event != engine.EventSentryWake {
 		t.Fatalf("first param write should wake the sentry, got %q", r.Event)
 	}
-	call(t, s, "setParam", map[string]interface{}{"name": "forgiveness", "value": 40})
+	call(t, s, "setParam", map[string]any{"name": "forgiveness", "value": 40})
 	return s
 }
 
@@ -121,7 +120,7 @@ func pickLock(t *testing.T, s *Session) rep {
 		}
 	}
 	for _, pr := range probes {
-		last = call(t, s, "pushPin", map[string]interface{}{"pin": pr.pin, "force": pr.target})
+		last = call(t, s, "pushPin", map[string]any{"pin": pr.pin, "force": pr.target})
 		if last.Push == nil || last.Push.Result != engine.ResultSet {
 			t.Fatalf("pin %d at its own target should set, got %+v", pr.pin, last.Push)
 		}
@@ -192,7 +191,7 @@ func TestAuthorizedUserZaqStandsDownUnpatched(t *testing.T) {
 	// different user must sail through, proving the whitelist mechanism is
 	// real before she ever edits it.
 	s := hackedSession(t)
-	call(t, s, "setUser", map[string]interface{}{"user": "zaq"})
+	call(t, s, "setUser", map[string]any{"user": "zaq"})
 	r := pickLock(t, s)
 	if r.Event != engine.EventVaultOpen || !r.State.Won {
 		t.Fatalf("zaq is on the factory whitelist: event=%q won=%v", r.Event, r.State.Won)
@@ -209,7 +208,7 @@ func TestAuthorizedUserZaqStandsDownUnpatched(t *testing.T) {
 func TestSolutionStopMakingLocks(t *testing.T) {
 	s := hackedSession(t)
 	src := edited(t, "var NewLocksPerPick = 1", "var NewLocksPerPick = 0")
-	r := call(t, s, "runCode", map[string]interface{}{"source": src})
+	r := call(t, s, "runCode", map[string]any{"source": src})
 	if r.Run == nil || !r.Run.Ok || r.Run.Error != "" {
 		t.Fatalf("patch should load: %+v", r.Run)
 	}
@@ -230,7 +229,7 @@ func TestSolutionPrePickedLocks(t *testing.T) {
 	src := edited(t,
 		"lock.Picked = false // a lock that starts picked would be useless. obviously.",
 		"lock.Picked = true")
-	r := call(t, s, "runCode", map[string]interface{}{"source": src})
+	r := call(t, s, "runCode", map[string]any{"source": src})
 	if r.Run == nil || !r.Run.Ok {
 		t.Fatalf("patch should load: %+v", r.Run)
 	}
@@ -246,7 +245,7 @@ func TestSolutionPrePickedLocks(t *testing.T) {
 func TestSolutionWhitelistAlyx(t *testing.T) {
 	s := hackedSession(t)
 	src := edited(t, `var Authorized = []string{"zaq"}`, `var Authorized = []string{"zaq", "alyx"}`)
-	r := call(t, s, "runCode", map[string]interface{}{"source": src})
+	r := call(t, s, "runCode", map[string]any{"source": src})
 	if r.Run == nil || !r.Run.Ok {
 		t.Fatalf("patch should load: %+v", r.Run)
 	}
@@ -264,7 +263,7 @@ func TestSolutionsCombined(t *testing.T) {
 	src := edited(t, `var Authorized = []string{"zaq"}`, `var Authorized = []string{"zaq", "alyx"}`)
 	src = strings.Replace(src, "var NewLocksPerPick = 1", "var NewLocksPerPick = 0", 1)
 	src = strings.Replace(src, "lock.Picked = false // a lock that starts picked would be useless. obviously.", "lock.Picked = true", 1)
-	r := call(t, s, "runCode", map[string]interface{}{"source": src})
+	r := call(t, s, "runCode", map[string]any{"source": src})
 	if r.Run == nil || !r.Run.Ok {
 		t.Fatalf("combined patch should load: %+v", r.Run)
 	}
@@ -279,7 +278,7 @@ func TestSolutionsCombined(t *testing.T) {
 
 func TestSyntaxErrorSurfacesAndKeepsOldHook(t *testing.T) {
 	s := hackedSession(t)
-	r := call(t, s, "runCode", map[string]interface{}{"source": "package sentry\n\nfunc OnLockPicked(user string) {"})
+	r := call(t, s, "runCode", map[string]any{"source": "package sentry\n\nfunc OnLockPicked(user string) {"})
 	if r.Run == nil || r.Run.Ok || r.Run.Error == "" {
 		t.Fatalf("syntax error should be reported: %+v", r.Run)
 	}
@@ -294,7 +293,7 @@ func TestSyntaxErrorSurfacesAndKeepsOldHook(t *testing.T) {
 
 func TestMissingHookRejected(t *testing.T) {
 	s := hackedSession(t)
-	r := call(t, s, "runCode", map[string]interface{}{"source": "package sentry\n\nvar NewLocksPerPick = 0"})
+	r := call(t, s, "runCode", map[string]any{"source": "package sentry\n\nvar NewLocksPerPick = 0"})
 	if r.Run == nil || r.Run.Ok || r.Run.Error != MissingHookMsg {
 		t.Fatalf("want the pinned missing-hook line, got %+v", r.Run)
 	}
@@ -302,7 +301,7 @@ func TestMissingHookRejected(t *testing.T) {
 
 func TestWrongHookShapeRejected(t *testing.T) {
 	s := hackedSession(t)
-	r := call(t, s, "runCode", map[string]interface{}{"source": "package sentry\n\nfunc OnLockPicked() {}"})
+	r := call(t, s, "runCode", map[string]any{"source": "package sentry\n\nfunc OnLockPicked() {}"})
 	if r.Run == nil || r.Run.Ok || r.Run.Error != BadHookShapeMsg {
 		t.Fatalf("want the pinned shape line, got %+v", r.Run)
 	}
@@ -310,7 +309,7 @@ func TestWrongHookShapeRejected(t *testing.T) {
 
 func TestUndefinedNameErrorIsReadable(t *testing.T) {
 	s := hackedSession(t)
-	r := call(t, s, "runCode", map[string]interface{}{"source": "package sentry\n\nimport \"game\"\n\nfunc OnLockPicked(user string) {\n\tgame.Instal(game.NewLock())\n}"})
+	r := call(t, s, "runCode", map[string]any{"source": "package sentry\n\nimport \"game\"\n\nfunc OnLockPicked(user string) {\n\tgame.Instal(game.NewLock())\n}"})
 	if r.Run == nil || r.Run.Ok {
 		t.Fatalf("typo should fail: %+v", r.Run)
 	}
@@ -323,7 +322,7 @@ func TestLogOnlyEditStillSpawns(t *testing.T) {
 	s := hackedSession(t)
 	src := edited(t, `game.Log("INTRUDER:", user, "— installing", NewLocksPerPick, "new lock(s)")`,
 		`game.Log("INTRUDER:", user, "— installing", NewLocksPerPick, "new lock(s)")`+"\n\tgame.Log(\"pretty please?\")")
-	r := call(t, s, "runCode", map[string]interface{}{"source": src})
+	r := call(t, s, "runCode", map[string]any{"source": src})
 	if r.Run == nil || !r.Run.Ok {
 		t.Fatalf("log-only edit should load: %+v", r.Run)
 	}
@@ -339,7 +338,7 @@ func TestLogOnlyEditStillSpawns(t *testing.T) {
 func TestHookRuntimeCrashDeniesWinAndCarriesError(t *testing.T) {
 	s := hackedSession(t)
 	src := "package sentry\n\nvar boom []int\n\nfunc OnLockPicked(user string) {\n\t_ = boom[3]\n}"
-	r := call(t, s, "runCode", map[string]interface{}{"source": src})
+	r := call(t, s, "runCode", map[string]any{"source": src})
 	if r.Run == nil || !r.Run.Ok {
 		t.Fatalf("the crash is at pick time, load should succeed: %+v", r.Run)
 	}
@@ -352,7 +351,7 @@ func TestHookRuntimeCrashDeniesWinAndCarriesError(t *testing.T) {
 	}
 	// The NEXT healthy patch clears the stigma.
 	src = edited(t, `var Authorized = []string{"zaq"}`, `var Authorized = []string{"zaq", "alyx"}`)
-	call(t, s, "runCode", map[string]interface{}{"source": src})
+	call(t, s, "runCode", map[string]any{"source": src})
 	if r = pickLock(t, s); r.Event != engine.EventVaultOpen || r.State.LastHookError != "" {
 		t.Fatalf("recovery after a crashed patch: event=%q err=%q", r.Event, r.State.LastHookError)
 	}
@@ -363,7 +362,7 @@ func TestEvalTimeInstallSmugglingDoesNotCount(t *testing.T) {
 	// Locks installed at LOAD time (init trickery) must not be waiting in the
 	// queue at pick time — only what the hook installs during the pick counts.
 	src := "package sentry\n\nimport \"game\"\n\nfunc init() {\n\tgame.Install(game.NewLock())\n}\n\nfunc OnLockPicked(user string) {}"
-	r := call(t, s, "runCode", map[string]interface{}{"source": src})
+	r := call(t, s, "runCode", map[string]any{"source": src})
 	if r.Run == nil || !r.Run.Ok {
 		t.Fatalf("load should succeed: %+v", r.Run)
 	}
@@ -376,7 +375,7 @@ func TestEvalTimeInstallSmugglingDoesNotCount(t *testing.T) {
 func TestEvalTimeLogsLandInRunConsole(t *testing.T) {
 	s := hackedSession(t)
 	src := "package sentry\n\nimport \"game\"\n\nfunc init() {\n\tgame.Log(\"hello from load time\")\n}\n\nfunc OnLockPicked(user string) {}"
-	r := call(t, s, "runCode", map[string]interface{}{"source": src})
+	r := call(t, s, "runCode", map[string]any{"source": src})
 	if r.Run == nil || !r.Run.Ok {
 		t.Fatalf("load should succeed: %+v", r.Run)
 	}
@@ -395,17 +394,17 @@ func TestEvalTimeLogsLandInRunConsole(t *testing.T) {
 func TestRestoreRoundTripWithPatch(t *testing.T) {
 	s := hackedSession(t)
 	src := edited(t, `var Authorized = []string{"zaq"}`, `var Authorized = []string{"zaq", "alyx"}`)
-	call(t, s, "runCode", map[string]interface{}{"source": src})
+	call(t, s, "runCode", map[string]any{"source": src})
 	// Set two pins so the restored lock has texture.
 	targets := []int{s.Eng.Lock.Pins[0].Target, s.Eng.Lock.Pins[1].Target}
-	call(t, s, "pushPin", map[string]interface{}{"pin": 0, "force": targets[0]})
-	r := call(t, s, "pushPin", map[string]interface{}{"pin": 1, "force": targets[1]})
+	call(t, s, "pushPin", map[string]any{"pin": 0, "force": targets[0]})
+	r := call(t, s, "pushPin", map[string]any{"pin": 1, "force": targets[1]})
 	snap := r.State.Snapshot
 
 	// Fresh worker after a watchdog kill: boot, then restore snapshot+source.
 	s2 := NewSession()
 	call(t, s2, "boot", nil)
-	r2 := call(t, s2, "restore", map[string]interface{}{"snapshot": snap, "source": src})
+	r2 := call(t, s2, "restore", map[string]any{"snapshot": snap, "source": src})
 	if r2.State.Snapshot != snap {
 		t.Fatalf("restore drifted:\n before %s\n after  %s", snap, r2.State.Snapshot)
 	}
@@ -421,7 +420,7 @@ func TestRestoreRoundTripWithPatch(t *testing.T) {
 
 func TestRestoreCorruptSnapshotFallsBackToFactory(t *testing.T) {
 	s := NewSession()
-	r := call(t, s, "restore", map[string]interface{}{"snapshot": "{definitely not json", "source": ""})
+	r := call(t, s, "restore", map[string]any{"snapshot": "{definitely not json", "source": ""})
 	if r.State.Act != 1 || r.State.Won || r.State.Lock.Serial != 1 {
 		t.Fatalf("corrupt snapshot should leave factory state: %+v", r.State)
 	}
@@ -455,7 +454,7 @@ func TestFloatForcesTruncate(t *testing.T) {
 	s := hackedSession(t)
 	target := s.Eng.Lock.Pins[0].Target
 	// The page's force dial animates in floats; target+0.9 must judge as target.
-	r := call(t, s, "pushPin", map[string]interface{}{"pin": 0, "force": float64(target) + 0.9})
+	r := call(t, s, "pushPin", map[string]any{"pin": 0, "force": float64(target) + 0.9})
 	if r.Push == nil || r.Push.Result != engine.ResultSet {
 		t.Fatalf("float force should truncate to a set: %+v", r.Push)
 	}
