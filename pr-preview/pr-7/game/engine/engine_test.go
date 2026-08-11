@@ -114,7 +114,7 @@ func TestOversetWithNoSetPinsDropsNothing(t *testing.T) {
 func TestPickBreaksAtZeroAndStaysBroken(t *testing.T) {
 	e := rig(50)
 	var lastEvent string
-	for i := 0; i < RiggedPickStrength; i++ {
+	for range RiggedPickStrength {
 		_, lastEvent = e.PushPin(0, 0)
 	}
 	if lastEvent != EventPickBroke {
@@ -131,7 +131,7 @@ func TestPickBreaksAtZeroAndStaysBroken(t *testing.T) {
 
 func TestNewLockRecutsPickToCurrentStrength(t *testing.T) {
 	e := New()
-	for i := 0; i < RiggedPickStrength; i++ {
+	for range RiggedPickStrength {
 		e.PushPin(0, 0)
 	}
 	if !e.Pick.Broken {
@@ -387,7 +387,7 @@ func TestRiggedTuningIsHonestlyWinnable(t *testing.T) {
 func TestRiggedTuningIsPracticallyUnwinnable(t *testing.T) {
 	const runs = 2000
 	wins := 0
-	for i := 0; i < runs; i++ {
+	for i := range runs {
 		e := New()
 		// Vary the lock so we sample many target layouts, not one.
 		e.nextSerial = 1 + i
@@ -406,7 +406,7 @@ func TestBuffedTuningIsEasy(t *testing.T) {
 	// mid-dial sets EVERY pin: |50-target| <= 35 <= forgiveness 40 for all
 	// targets in 25..85. Five pushes, zero misses, guaranteed.
 	rng := rand.New(rand.NewSource(11))
-	for i := 0; i < 500; i++ {
+	for range 500 {
 		e := New()
 		e.nextSerial = 1 + rng.Intn(100000)
 		e.NewLock()

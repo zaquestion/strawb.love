@@ -16,10 +16,12 @@ import (
 // ============================================================================
 
 const (
-	// Factory (act-1) tuning. A ±1 window on a 0..100 dial, five pins, three
+	// Factory (act-1) tuning. A ±1 window on a 0..100 dial, five pins, five
 	// hit points: genuinely winnable in principle — the code path is honest and
 	// the miracle win is scripted — but astronomically unlikely in practice.
-	RiggedPickStrength = 3 // hp: three misses total, five pins to set
+	// Five misses (playtest-tuned up from three): enough futile pushes that
+	// the rigging reads as comedy, few enough that it snaps before it bores.
+	RiggedPickStrength = 5 // hp: five misses total, five pins to set
 	RiggedForgiveness  = 1 // force units: sweet-spot half-width
 
 	// Admin clamps. The panel writes land here; anything outside snaps in.
@@ -36,7 +38,7 @@ const (
 // Params are the live tuning knobs. The admin panel edits THESE fields —
 // there is no second copy; the act-1 rigging is just their factory values.
 type Params struct {
-	PickStrength int // pick hit points; a slip or overset chips 1  (rigged: 3)
+	PickStrength int // pick hit points; a slip or overset chips 1  (rigged: 5)
 	Forgiveness  int // sweet-spot half-width in force units        (rigged: 1)
 }
 

@@ -71,7 +71,7 @@ func (p *Patcher) exports() interp.Exports {
 
 // gameLog implements game.Log: one console line per call, fmt.Sprintln
 // spacing (that is where "hi alyx . carry on." gets its charming gap).
-func (p *Patcher) gameLog(args ...interface{}) {
+func (p *Patcher) gameLog(args ...any) {
 	p.logs = append(p.logs, strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
 }
 
