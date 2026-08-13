@@ -16,12 +16,12 @@ import (
 // ============================================================================
 
 const (
-	// Factory (act-1) tuning. A ±1 window on a 0..100 dial, five pins, five
+	// Factory (act-1) tuning. A ±1 window on a 0..100 dial, five pins, three
 	// hit points: genuinely winnable in principle — the code path is honest and
 	// the miracle win is scripted — but astronomically unlikely in practice.
-	// Five misses (playtest-tuned up from three): enough futile pushes that
-	// the rigging reads as comedy, few enough that it snaps before it bores.
-	RiggedPickStrength = 5 // hp: five misses total, five pins to set
+	// Three misses (playtested at five, tuned back down): enough futile pushes
+	// that the rigging reads as comedy, few enough that the snap lands fast.
+	RiggedPickStrength = 3 // hp: three misses total, five pins to set
 	RiggedForgiveness  = 1 // force units: sweet-spot half-width
 
 	// Admin clamps. The panel writes land here; anything outside snaps in.

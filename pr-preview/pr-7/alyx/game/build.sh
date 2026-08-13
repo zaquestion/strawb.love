@@ -6,11 +6,11 @@
 # against the freshly built wasm + freshly copied glue. The gh-pages deploy
 # never runs Go — the artifacts this script writes are COMMITTED files:
 #
-#   ../alyx/game.wasm.gz   gzip -9 of the wasm (gh-pages won't compress .wasm;
+#   ../game.wasm.gz   gzip -9 of the wasm (gh-pages won't compress .wasm;
 #                          the page inflates with DecompressionStream)
-#   ../alyx/wasm_exec.js   copied verbatim from $GOROOT/lib/wasm/
+#   ../wasm_exec.js   copied verbatim from $GOROOT/lib/wasm/
 #
-# (../alyx/worker.js is hand-written and committed, not generated here.)
+# (../worker.js is hand-written and committed, not generated here.)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -35,19 +35,18 @@ echo "── build js/wasm ──"
 wasm_out=$(mktemp -t game.wasm.XXXXXX)
 trap 'rm -f "$wasm_out"' EXIT
 GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o "$wasm_out" ./wasmmain
-mkdir -p ../alyx
 # -n: omit the input name + mtime from the gzip header — without it every run
 # embeds the random mktemp filename and the clock, churning the committed
 # artifact even when the wasm inside is byte-identical.
-gzip -9 -n -c "$wasm_out" > ../alyx/game.wasm.gz
-cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ../alyx/wasm_exec.js
+gzip -9 -n -c "$wasm_out" > ../game.wasm.gz
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ../wasm_exec.js
 
 echo "── node smoke (drives the real wasm + shipped glue) ──"
 node smoke/smoke.test.js "$wasm_out"
 
-gz_size=$(wc -c < ../alyx/game.wasm.gz)
+gz_size=$(wc -c < ../game.wasm.gz)
 echo "── artifacts ──"
-ls -la ../alyx/game.wasm.gz ../alyx/wasm_exec.js ../alyx/worker.js
+ls -la ../game.wasm.gz ../wasm_exec.js ../worker.js
 echo "game.wasm.gz: ${gz_size} bytes gzipped"
 if [ "$gz_size" -gt "$GZ_BUDGET_BYTES" ]; then
   echo "WARN: game.wasm.gz exceeds the ${GZ_BUDGET_BYTES}-byte budget" >&2
