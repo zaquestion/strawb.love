@@ -64,7 +64,8 @@
       border-radius: 14px;
       padding: 10px;
       box-shadow: 0 3px 10px rgba(90, 60, 120, .14);
-      width: min(100%, 512px, calc(100dvh - 140px));
+      /* fallback only — the sizing script below pins an exact px size */
+      width: min(100%, 512px);
     }
     /* the canvas must not have any border or padding, or mouse coords will be wrong */
     canvas#canvas {
@@ -218,7 +219,7 @@
       background: #7b4ba3;
       font-size: 15px;
       box-shadow: 0 5px 14px rgba(123, 75, 163, .4);
-      margin-right: 96px;
+      margin-right: 64px;
     }
     #btn-pause {
       position: absolute;
@@ -274,6 +275,24 @@
   </div>
 
   <script>
+    // The game sizes its framebuffer from the canvas element's CSS size at
+    // boot and follows later element resizes — a path that garbles rendering
+    // on some phone GPUs. Pin the canvas to a fixed integer size (multiple of
+    // 8, so edges land on device pixels at common DPRs) computed once, so the
+    // element can never change size after the game boots, no matter what the
+    // URL bar, fonts, or rotation do to the layout.
+    (function () {
+      var coarse = matchMedia('(pointer: coarse)').matches;
+      var availW = document.documentElement.clientWidth - 32 - 20; // page + card padding
+      var availH = window.innerHeight - (coarse ? 400 : 200);      // header/controls/footer
+      var size = Math.min(512, availW, Math.max(availH, 240));
+      size = Math.max(160, 8 * Math.floor(size / 8));
+      var canvas = document.getElementById('canvas');
+      canvas.style.width = size + 'px';
+      canvas.style.height = size + 'px';
+      document.querySelector('.game-card').style.width = (size + 20) + 'px';
+    })();
+
     var statusElement = document.getElementById('status');
     var progressElement = document.getElementById('progress');
     var loadingElement = document.getElementById('loading');
