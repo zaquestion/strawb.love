@@ -104,21 +104,21 @@ func TestDefaultSourceMatchesDiskFile(t *testing.T) {
 }
 
 // TestDefaultSourceMatchesPageCopy pins DefaultSource to the DEFAULT_SOURCE
-// array the REAL ../../alyx.html ships (plan §5) — read from the bundled page
+// array the REAL ../../index.html ships (plan §5) — read from the bundled page
 // itself, not a third hand-maintained copy, so drift on EITHER side fails this
-// test. If it fails, alyx.html and the engine are showing her two different
+// test. If it fails, the page and the engine are showing her two different
 // files — fix the drift, do not weaken the test.
 func TestDefaultSourceMatchesPageCopy(t *testing.T) {
-	page, err := os.ReadFile("../../alyx.html")
+	page, err := os.ReadFile("../../index.html")
 	if err != nil {
-		t.Fatalf("read ../../alyx.html (run from game/sentry): %v", err)
+		t.Fatalf("read ../../index.html (run from alyx/game/sentry): %v", err)
 	}
 	got, err := pageDefaultSource(string(page))
 	if err != nil {
-		t.Fatalf("extract DEFAULT_SOURCE from alyx.html: %v", err)
+		t.Fatalf("extract DEFAULT_SOURCE from ../index.html: %v", err)
 	}
 	if got != DefaultSource {
-		t.Fatalf("alyx.html DEFAULT_SOURCE differs from the engine's DefaultSource:\n--- page ---\n%s\n--- engine ---\n%s", got, DefaultSource)
+		t.Fatalf("../index.html DEFAULT_SOURCE differs from the engine's DefaultSource:\n--- page ---\n%s\n--- engine ---\n%s", got, DefaultSource)
 	}
 }
 

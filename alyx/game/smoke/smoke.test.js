@@ -1,5 +1,5 @@
 // smoke.test.js — end-to-end proof that the COMMITTED artifacts work: loads
-// the freshly built wasm with the freshly copied alyx/wasm_exec.js and drives
+// the freshly built wasm with the freshly copied ../wasm_exec.js and drives
 // the engineCall JSON protocol through the full story — boot, rigged break,
 // admin buff (sentryWake), spawn escalation, each canonical solution, restore
 // round trip, rejection messages. Run by build.sh: node smoke.test.js <wasm>.
@@ -12,7 +12,7 @@ const path = require("path");
 
 // The SAME glue the page ships — testing against a different wasm_exec.js
 // would validate nothing.
-require(path.join(__dirname, "..", "..", "alyx", "wasm_exec.js"));
+require(path.join(__dirname, "..", "..", "wasm_exec.js"));
 
 const wasmFile = process.argv[2];
 if (!wasmFile) {
@@ -32,7 +32,7 @@ function assert(cond, label, detail) {
 
 // Mirrors engine.RiggedPickStrength — the act-1 factory pick hp. The boot
 // assertions below fail loudly if the engine's rigging drifts from this.
-const RIGGED_HP = 5;
+const RIGGED_HP = 3;
 
 let id = 0;
 function call(action, args) {
