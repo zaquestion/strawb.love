@@ -202,14 +202,14 @@
           <g id="mountain">
             <path d="M8 196 L52 96 L68 128 L82 74 L118 196 Z" fill="#d9c4ec"/>
             <path d="M82 74 L70 104 L76 100 L82 112 L88 98 L94 106 L82 74 Z" fill="#fff"/>
-            <!-- the key, glinting at the summit -->
-            <g id="keyglint" transform="translate(82 62)">
+            <!-- the key, glinting part way up the slope -->
+            <g id="keyglint" transform="translate(68 125)">
               <circle cx="-4" cy="0" r="3.4" fill="none" stroke="#f0c75e" stroke-width="2.4"/>
               <line x1="-1" y1="0" x2="8" y2="0" stroke="#f0c75e" stroke-width="2.4" stroke-linecap="round"/>
               <line x1="5" y1="0" x2="5" y2="3.4" stroke="#f0c75e" stroke-width="2.4" stroke-linecap="round"/>
               <line x1="8" y1="0" x2="8" y2="3.4" stroke="#f0c75e" stroke-width="2.4" stroke-linecap="round"/>
             </g>
-            <path id="keyspark" d="M96 58 l1.6 3.6 3.6 1.6 -3.6 1.6 -1.6 3.6 -1.6 -3.6 -3.6 -1.6 3.6 -1.6 Z" fill="#f0c75e" style="animation: twinkle 1.6s ease-in-out .5s infinite"/>
+            <path id="keyspark" d="M54 110 l1.6 3.6 3.6 1.6 -3.6 1.6 -1.6 3.6 -1.6 -3.6 -3.6 -1.6 3.6 -1.6 Z" fill="#f0c75e" style="animation: twinkle 1.6s ease-in-out .5s infinite"/>
           </g>
 
           <!-- the box that needs a combination -->
@@ -218,16 +218,27 @@
             <rect x="-8" y="-42" width="16" height="42" fill="#fbdce9"/>
             <rect x="-40" y="-54" width="80" height="15" rx="5" fill="#d55a8c"/>
             <rect x="-8" y="-54" width="16" height="15" fill="#fbdce9"/>
-            <!-- combination dial -->
-            <circle cx="0" cy="-22" r="11" fill="#fff" stroke="#8a3670" stroke-width="3"/>
-            <g stroke="#8a3670" stroke-width="1.8" stroke-linecap="round">
-              <line x1="0" y1="-31" x2="0" y2="-28"/>
-              <line x1="7" y1="-22" x2="4" y2="-22"/>
-              <line x1="0" y1="-13" x2="0" y2="-16"/>
-              <line x1="-7" y1="-22" x2="-4" y2="-22"/>
+            <!-- combination wheels (bike-lock style, set into the front) -->
+            <rect x="-25" y="-32" width="50" height="20" rx="4" fill="#8a3670"/>
+            <g>
+              <rect x="-21" y="-29" width="9" height="14" rx="2" fill="#fff"/>
+              <rect x="-10" y="-29" width="9" height="14" rx="2" fill="#fff"/>
+              <rect x="1"   y="-29" width="9" height="14" rx="2" fill="#fff"/>
+              <rect x="12"  y="-29" width="9" height="14" rx="2" fill="#fff"/>
             </g>
-            <line x1="0" y1="-22" x2="4.5" y2="-27" stroke="#c9366d" stroke-width="2.4" stroke-linecap="round"/>
-            <circle cx="0" cy="-22" r="2" fill="#8a3670"/>
+            <!-- neighbouring digits peeking over the wheel edges -->
+            <g stroke="#bda4d6" stroke-width="1.2" stroke-linecap="round">
+              <line x1="-19" y1="-27" x2="-14" y2="-27"/><line x1="-19" y1="-17" x2="-14" y2="-17"/>
+              <line x1="-8"  y1="-27" x2="-3"  y2="-27"/><line x1="-8"  y1="-17" x2="-3"  y2="-17"/>
+              <line x1="3"   y1="-27" x2="8"   y2="-27"/><line x1="3"   y1="-17" x2="8"   y2="-17"/>
+              <line x1="14"  y1="-27" x2="19"  y2="-27"/><line x1="14"  y1="-17" x2="19"  y2="-17"/>
+            </g>
+            <g fill="#8a3670" text-anchor="middle" font-size="8.5" style="font-family:'Baloo 2',cursive;font-weight:800">
+              <text x="-16.5" y="-19">0</text>
+              <text x="-5.5"  y="-19">0</text>
+              <text x="5.5"   y="-19">0</text>
+              <text x="16.5"  y="-19">0</text>
+            </g>
           </g>
 
           <!-- zaq: puzzled -->
@@ -315,9 +326,9 @@
     (function () {
       var beats = [
         { pose: 'idle',  worried: false, peak: false, text: "a code?? what code. boxes don't need codes." },
-        { pose: 'idle',  worried: false, peak: false, text: "…the combination dial. right there. on the front of the box. hm. hold on. thinking." },
+        { pose: 'idle',  worried: false, peak: false, text: "…the little number wheels. right there. on the front of the box. hm. hold on. thinking." },
         { pose: 'panic', worried: true,  peak: false, text: "YIKES. okay. yes. there is a code. and i put it somewhere really, really safe." },
-        { pose: 'panic', worried: true,  peak: true,  text: "…it's engraved on a key. which i left at the top of the mountain. the big snowy one. for safekeeping." },
+        { pose: 'panic', worried: true,  peak: true,  text: "…it's engraved on a key. which i left part way up the mountain. the big snowy one. for safekeeping." },
         { pose: 'plead', worried: false, peak: true,  text: "can you fetch it for me? you're a way better climber than i am. i'll stay here and guard the box." }
       ];
 
